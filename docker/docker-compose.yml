@@ -1,0 +1,91 @@
+version : '3.3'
+networks: # 自定义网络(默认桥接), 不使用links通信
+  nginx_network:
+    driver: bridge
+  db_network:
+    driver: bridge
+  redis_network:
+    driver: bridge
+services:
+  ruoyi_mysql:
+    container_name: ruoyi_mysql
+    image: mysql:5.7
+    build:
+      # 上下文目录
+      context: ./mysql
+    ports:
+      - "3308:3306"
+    volumes:
+      # 映射目录
+      - ./mysql/conf:/etc/mysql/conf.d
+      - ./mysql/logs:/logs
+      # 持久化数据
+      - ./mysql/data:/var/lib/mysql:rw
+    command: [
+      # mysql初始化参数
+      'mysqld',
+      '--innodb-buffer-pool-size=80M',
+      '--character-set-server=utf8mb4',
+      '--collation-server=utf8mb4_unicode_ci',
+      '--default-time-zone=+8:00',
+      '--lower-case-table-names=1'
+    ]
+    environment:
+      # 数据库名称和管理员密码
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_DATABASE: 'ruoyi'
+      MYSQL_ROOT_PASSWORD: "zipper949389"
+      MYSQL_USER: 'zipper'
+      MYSQL_PASSWORD: 'zipper949389'
+    restart: always
+    networks:
+      - db_network
+  ruoyi_redis:
+    container_name: ruoyi_redis
+    image: redis
+    build:
+      context: ./redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/redis.conf:/home/ruoyi/redis/redis.conf
+      - ./redis/data:/data
+    command: redis-server /home/ruoyi/redis/redis.conf
+    restart: always
+    networks:
+      - redis_network
+  ruoyi_nginx:
+    container_name: ruoyi_nginx
+    image: nginx
+    build:
+      context: ./nginx
+    ports:
+      - "8000:80"
+    volumes:
+      - ./nginx/html/dist:/home/ruoyi/www/dist/ruoyi-ui
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/logs:/var/log/nginx
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    restart: always
+    networks:
+      - nginx_network
+  ruoyi_admin:
+    container_name: ruoyi_admin
+    build:
+      context: ./ruoyi
+    ports:
+      - "8888:8080"
+    volumes:
+      - ./ruoyi:/home/ruoyi
+      - ./ruoyi/ruoyi-admin.jar:/home/ruoyi/ruoyi-admin.jar
+    environment:
+      UPLOAD_FILE: /home/ruoyi/data/upload
+    depends_on:
+      - ruoyi_mysql
+      - ruoyi_redis
+      - ruoyi_nginx
+    restart: always
+    networks:
+      - nginx_network
+      - redis_network
+      - db_network
